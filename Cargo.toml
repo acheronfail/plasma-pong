@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
+clap = { version = "4.4.6", features = ["derive"] }
 gl = "0.14.0"
+glam = { version = "0.24.2", features = ["rand"] }
 glutin = "0.30.10"
 glutin-winit = "0.3.0"
 glyph_brush = "0.7.8"

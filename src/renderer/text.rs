@@ -9,6 +9,7 @@ use crate::renderer::glyph::{to_vertex, GlGlyphTexture, GlTextPipe};
 
 const FONT: &[u8] = include_bytes!("gnu-freefont-FreeMono.ttf");
 
+/// A wrapper around `glyph_brush` to expose a simple API for drawing text with GL.
 pub struct GlText {
     max_image_dimension: u32,
     glyph_brush: GlyphBrush<GlGlyphVertex, glyph_brush::Extra, FontRef<'static>>,

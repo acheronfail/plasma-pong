@@ -1,6 +1,7 @@
 mod glyph;
 mod particles;
 mod text;
+mod uniform;
 mod utils;
 
 use std::ffi::CString;
@@ -45,7 +46,11 @@ impl Renderer {
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
             // draw particles
-            self.particles.draw(&state.particles);
+            self.particles.draw(
+                ApplicationState::PARTICLE_RADIUS,
+                &state.positions,
+                &state.velocities,
+            );
 
             // draw text on screen
             self.text.update_geometry(state.surface_dimensions);

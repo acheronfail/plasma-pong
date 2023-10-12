@@ -20,7 +20,7 @@ rrun *args:
   cargo run --release -- {{args}}
 
 watch *args:
-  cargo watch -x run {{args}}
+  cargo watch -x 'run -- {{args}}'
 
 test:
   cargo test

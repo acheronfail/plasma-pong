@@ -1,6 +1,7 @@
 #version 330 core
 
 out vec4 FragColor;
+in float particleVelocity;
 
 void main() {
     // gl_PointCoord provides the coordinate within the point sprite, ranging from (0,0) to (1,1).
@@ -13,5 +14,5 @@ void main() {
     }
 
     // Otherwise, set the fragment color as desired.
-    FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+    FragColor = vec4(particleVelocity, 1 - particleVelocity, 0.0, 1.0);
 }
