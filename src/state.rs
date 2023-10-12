@@ -1,35 +1,21 @@
 use std::f32::consts::PI;
 
 use glam::Vec2;
-use glutin::context::PossiblyCurrentContext;
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
-use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, VirtualKeyCode, WindowEvent};
-use winit::event_loop::ControlFlow;
-use winit::window::Window;
 
-use crate::fps::FpsCounter;
-
-pub struct ApplicationState {
-    pub gl_context: Option<PossiblyCurrentContext>,
-    pub window: Window,
-    pub surface_dimensions: PhysicalSize<u32>,
+pub struct State {
     rng: ThreadRng,
-
-    pub paused: bool,
 
     // particles
     pub positions: Vec<Vec2>,
     pub velocities: Vec<Vec2>,
     pub densities: Vec<f32>,
     pub predicted_positions: Vec<Vec2>,
-
-    pub fps_counter: FpsCounter,
 }
 
 const PARTICLE_COUNT: usize = 500;
-impl ApplicationState {
+impl State {
     pub const PARTICLE_RADIUS: f32 = 15.0;
 
     const MASS: f32 = 1.0;
@@ -38,22 +24,14 @@ impl ApplicationState {
     const COLLISION_DAMPING: f32 = 0.5;
     const PRESSURE_MULTIPLIER: f32 = 5.0;
 
-    pub fn new(window: Window) -> ApplicationState {
-        let window_dimensions = window.inner_size();
-        ApplicationState {
-            gl_context: None,
-            window,
-            surface_dimensions: window_dimensions,
+    pub fn new() -> State {
+        State {
             rng: thread_rng(),
-
-            paused: false,
 
             positions: generate_grid(PARTICLE_COUNT, true),
             velocities: vec![Vec2::ZERO; PARTICLE_COUNT],
             densities: vec![0.0; PARTICLE_COUNT],
             predicted_positions: vec![Vec2::ZERO; PARTICLE_COUNT],
-
-            fps_counter: FpsCounter::new(),
         }
     }
 
@@ -78,8 +56,6 @@ impl ApplicationState {
         }
 
         self.resolve_collisions();
-
-        self.fps_counter.update();
     }
 
     fn calculate_pressure_force(&mut self, idx: usize) -> Vec2 {
@@ -143,27 +119,6 @@ impl ApplicationState {
         }
 
         density
-    }
-
-    pub fn toggle_pause(&mut self) {
-        self.paused = !self.paused;
-    }
-
-    pub fn window_event(&mut self, event: WindowEvent, control_flow: &mut ControlFlow) {
-        match event {
-            WindowEvent::CloseRequested => control_flow.set_exit(),
-            WindowEvent::KeyboardInput { input, .. } => match input.virtual_keycode {
-                // close and exit when escape is pressed
-                Some(VirtualKeyCode::Escape) => *control_flow = ControlFlow::Exit,
-                // pause waveform render when space is pressed
-                Some(VirtualKeyCode::Space) if input.state == ElementState::Pressed => {
-                    self.toggle_pause()
-                }
-
-                _ => {}
-            },
-            _ => (),
-        }
     }
 }
 
