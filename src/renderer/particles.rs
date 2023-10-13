@@ -51,7 +51,7 @@ impl GlParticles {
             .zip(velocities)
             .flat_map(|(p, v)| {
                 let p = world_pos_to_gl_pos(bounding_box, p);
-                [p.x, p.y, v.length() / 4.0]
+                [p.x, p.y, v.length() / 2.0]
             })
             .collect::<Vec<f32>>();
 

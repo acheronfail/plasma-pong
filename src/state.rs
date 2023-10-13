@@ -50,11 +50,16 @@ pub struct State {
     pub predicted_positions: Vec<Vec2>,
     pub velocities: Vec<Vec2>,
     pub densities: Vec<f32>,
+
+    last_update_offset: f32,
 }
 
 const PARTICLE_COUNT: usize = 1500;
 impl State {
     pub const PIXELS_PER_UNIT: f32 = 50.0;
+
+    const TICK_RATE: f32 = 60.0;
+    const TICK_DELTA: f32 = 1.0 / Self::TICK_RATE;
 
     const MASS: f32 = 1.0;
     const TARGET_DENSITY: f32 = 5.0;
@@ -63,7 +68,7 @@ impl State {
     const PRESSURE_MULTIPLIER: f32 = 27.0;
 
     const INTERACTION_RADIUS: f32 = 1.0;
-    const INTERACTION_STRENGTH: f32 = 2.0;
+    const INTERACTION_STRENGTH: f32 = 3.0;
 
     pub fn new() -> State {
         let bounding_box = Rect::new(0.0, 0.0, 16.0, 9.0);
@@ -78,10 +83,24 @@ impl State {
             predicted_positions: vec![Vec2::ZERO; PARTICLE_COUNT],
             velocities: vec![Vec2::ZERO; PARTICLE_COUNT],
             densities: vec![0.0; PARTICLE_COUNT],
+
+            last_update_offset: 0.0,
         }
     }
 
     pub fn update(&mut self, delta_time: f32, interaction: Option<Interaction>) {
+        let end = self.last_update_offset + delta_time;
+        let mut t = Self::TICK_DELTA;
+
+        while t < end {
+            self.tick(Self::TICK_DELTA, interaction.as_ref());
+            t += Self::TICK_DELTA;
+        }
+
+        self.last_update_offset = end % Self::TICK_DELTA;
+    }
+
+    fn tick(&mut self, delta_time: f32, interaction: Option<&Interaction>) {
         // apply user input
         match interaction {
             Some(interaction) => {
@@ -92,7 +111,7 @@ impl State {
 
                 for i in 0..PARTICLE_COUNT {
                     let interaction_force =
-                        self.interaction_force(pos, Self::INTERACTION_RADIUS, strength, i);
+                        self.interaction_force(*pos, Self::INTERACTION_RADIUS, strength, i);
                     self.velocities[i] += interaction_force;
                 }
             }
