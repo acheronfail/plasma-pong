@@ -1,9 +1,11 @@
 use std::num::NonZeroU32;
 use std::time::Instant;
 
+use anyhow::Result;
 use glam::Vec2;
+use glutin::context::PossiblyCurrentContext;
 use glutin::prelude::*;
-use glutin::surface::SwapInterval;
+use glutin::surface::{Surface, SwapInterval, WindowSurface};
 use glutin_winit::GlWindow;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, Event, MouseButton, VirtualKeyCode, WindowEvent};
@@ -19,10 +21,15 @@ pub enum Interaction {
     Suck { pos: Vec2, radius: f32 },
 }
 
+impl Interaction {
+    const RADIUS: f32 = 0.5;
+}
+
 pub struct EngineContext<'a> {
     pub surface_dimensions: PhysicalSize<u32>,
     pub scale_factor: f32,
     pub state: &'a State,
+    pub vsync: bool,
     pub fps: f32,
 }
 
@@ -43,6 +50,7 @@ impl Engine {
         let mut cursor_pos = PhysicalPosition::default();
         let mut cursor_button = MouseButton::Left;
         let mut cursor_pressed = false;
+        let mut vsync = args.vsync;
 
         // gl state
         let mut gl_renderer = None;
@@ -79,6 +87,11 @@ impl Engine {
                         Some(VirtualKeyCode::Space) if input.state == ElementState::Pressed => {
                             set_pause!(!paused);
                         }
+                        // toggle vsync
+                        Some(VirtualKeyCode::V) if input.state == ElementState::Pressed => {
+                            vsync = !vsync;
+                            set_vsync(&gl_surface, gl_context.as_ref().unwrap(), vsync).unwrap();
+                        }
 
                         _ => {}
                     },
@@ -99,15 +112,7 @@ impl Engine {
                         .ok();
 
                     // configure the swap interval to not wait for vsync
-                    gl_surface
-                        .set_swap_interval(
-                            &gl_context.as_ref().unwrap(),
-                            match args.vsync {
-                                true => SwapInterval::Wait(NonZeroU32::MIN),
-                                false => SwapInterval::DontWait,
-                            },
-                        )
-                        .unwrap();
+                    set_vsync(&gl_surface, gl_context.as_ref().unwrap(), vsync).unwrap();
 
                     gl_renderer = Some(Renderer::new(&gl_display, &window).unwrap());
                 }
@@ -122,7 +127,7 @@ impl Engine {
                     state.update(
                         delta_time,
                         cursor_pressed.then(|| {
-                            let radius = 0.75;
+                            let radius = Interaction::RADIUS;
                             let pos = map_window_pos_to_gl_pos(surface_dimensions, cursor_pos);
                             match cursor_button {
                                 MouseButton::Right => Interaction::Suck { pos, radius },
@@ -152,6 +157,7 @@ impl Engine {
                                 surface_dimensions,
                                 scale_factor: window.scale_factor() as f32,
                                 state: &state,
+                                vsync,
                                 fps: fps_counter.fps(),
                             });
                             gl_surface.swap_buffers(&gl_context).unwrap();
@@ -171,6 +177,22 @@ impl Engine {
             }
         });
     }
+}
+
+fn set_vsync(
+    gl_surface: &Surface<WindowSurface>,
+    gl_context: &PossiblyCurrentContext,
+    vsync: bool,
+) -> Result<()> {
+    gl_surface.set_swap_interval(
+        &gl_context,
+        match vsync {
+            true => SwapInterval::Wait(NonZeroU32::MIN),
+            false => SwapInterval::DontWait,
+        },
+    )?;
+
+    Ok(())
 }
 
 fn map_window_pos_to_gl_pos(

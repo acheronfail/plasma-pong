@@ -59,7 +59,7 @@ impl Renderer {
                 // draw fps
                 Section::default()
                     .add_text(
-                        Text::new(&format!("FPS: {:.2}", ctx.fps))
+                        Text::new(&format!("FPS: {:.2} VSYNC: {}", ctx.fps, ctx.vsync))
                             .with_scale((18.0 * ctx.scale_factor).round())
                             .with_color([1.0, 1.0, 1.0, 1.0]),
                     )
