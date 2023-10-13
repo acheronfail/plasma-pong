@@ -10,10 +10,10 @@ use winit::event_loop::{EventLoop, EventLoopBuilder};
 use winit::window::{Window, WindowBuilder};
 
 const WINDOW_TITLE: &str = "plasma-pong";
-const WINDOW_X: i32 = 2230;
+const WINDOW_X: i32 = 0;
 const WINDOW_Y: i32 = 50;
-const WINDOW_WIDTH: i32 = 800;
-const WINDOW_HEIGHT: i32 = 600;
+const WINDOW_WIDTH: i32 = 1200;
+const WINDOW_HEIGHT: i32 = 800;
 
 /// Mostly all taken from:
 /// https://github.com/rust-windowing/glutin/blob/master/glutin_examples/src/lib.rs

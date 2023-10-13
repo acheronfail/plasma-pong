@@ -19,7 +19,7 @@ pub struct State {
     pub predicted_positions: Vec<Vec2>,
 }
 
-const PARTICLE_COUNT: usize = 500;
+const PARTICLE_COUNT: usize = 1000;
 impl State {
     pub const PARTICLE_RADIUS: f32 = 10.0;
 
@@ -27,7 +27,7 @@ impl State {
     const TARGET_DENSITY: f32 = 0.5;
     const SMOOTHING_RADIUS: f32 = 0.25;
     const COLLISION_DAMPING: f32 = 0.5;
-    const PRESSURE_MULTIPLIER: f32 = 5.0;
+    const PRESSURE_MULTIPLIER: f32 = 2.0;
 
     pub fn new() -> State {
         State {

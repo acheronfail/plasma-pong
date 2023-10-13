@@ -4,6 +4,7 @@ alias b := build
 alias r := run
 alias rr := rrun
 alias w := watch
+alias rw := rwatch
 
 default:
   just -l
@@ -21,6 +22,8 @@ rrun *args:
 
 watch *args:
   cargo watch -x 'run -- {{args}}'
+rwatch *args:
+  cargo watch -x 'run --release -- {{args}}'
 
 test:
   cargo test

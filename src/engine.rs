@@ -22,7 +22,7 @@ pub enum Interaction {
 }
 
 impl Interaction {
-    const RADIUS: f32 = 0.5;
+    const RADIUS: f32 = 0.25;
 }
 
 pub struct EngineContext<'a> {
@@ -199,9 +199,12 @@ fn map_window_pos_to_gl_pos(
     window_dimensions: PhysicalSize<u32>,
     position: PhysicalPosition<f64>,
 ) -> Vec2 {
+    let w = window_dimensions.width as f32;
+    let h = window_dimensions.height as f32;
+
     // convert to normalized device coordinates
-    let x_ndc = 2.0 * (position.x as f32 / window_dimensions.width as f32) - 1.0;
-    let y_ndc = 1.0 - 2.0 * (position.y as f32 / window_dimensions.height as f32);
+    let x_ndc = 2.0 * (position.x as f32 / w) - 1.0;
+    let y_ndc = 1.0 - 2.0 * (position.y as f32 / h);
 
     // assuming the viewport is the same size as the window
     Vec2::new(x_ndc, y_ndc).clamp(Vec2::NEG_ONE, Vec2::ONE)
