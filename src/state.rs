@@ -9,68 +9,115 @@ use rand::{thread_rng, Rng};
 
 use crate::engine::Interaction;
 
+#[derive(Debug, Clone, Copy)]
+pub struct Rect {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+impl Rect {
+    pub const fn new(x: f32, y: f32, w: f32, h: f32) -> Rect {
+        Rect { x, y, w, h }
+    }
+
+    pub fn left(&self) -> f32 {
+        self.x
+    }
+
+    pub fn right(&self) -> f32 {
+        self.x + self.w
+    }
+
+    pub fn top(&self) -> f32 {
+        self.y
+    }
+
+    pub fn bottom(&self) -> f32 {
+        self.y + self.h
+    }
+}
+
 pub struct State {
     rng: ThreadRng,
 
+    pub bounding_box: Rect,
+    pub particle_radius: f32,
+
     // particles
     pub positions: Vec<Vec2>,
+    pub predicted_positions: Vec<Vec2>,
     pub velocities: Vec<Vec2>,
     pub densities: Vec<f32>,
-    pub predicted_positions: Vec<Vec2>,
 }
 
-const PARTICLE_COUNT: usize = 1000;
+const PARTICLE_COUNT: usize = 1500;
 impl State {
-    pub const PARTICLE_RADIUS: f32 = 10.0;
+    pub const PIXELS_PER_UNIT: f32 = 50.0;
 
     const MASS: f32 = 1.0;
-    const TARGET_DENSITY: f32 = 0.5;
-    const SMOOTHING_RADIUS: f32 = 0.25;
-    const COLLISION_DAMPING: f32 = 0.5;
-    const PRESSURE_MULTIPLIER: f32 = 2.0;
+    const TARGET_DENSITY: f32 = 5.0;
+    const SMOOTHING_RADIUS: f32 = 0.7;
+    const COLLISION_DAMPING: f32 = 0.95;
+    const PRESSURE_MULTIPLIER: f32 = 27.0;
+
+    const INTERACTION_RADIUS: f32 = 1.0;
+    const INTERACTION_STRENGTH: f32 = 2.0;
 
     pub fn new() -> State {
+        let bounding_box = Rect::new(0.0, 0.0, 16.0, 9.0);
+        let positions = generate_grid(bounding_box, PARTICLE_COUNT);
         State {
             rng: thread_rng(),
 
-            positions: generate_grid(PARTICLE_COUNT, true),
+            bounding_box,
+            particle_radius: Self::SMOOTHING_RADIUS * Self::PIXELS_PER_UNIT,
+
+            positions,
+            predicted_positions: vec![Vec2::ZERO; PARTICLE_COUNT],
             velocities: vec![Vec2::ZERO; PARTICLE_COUNT],
             densities: vec![0.0; PARTICLE_COUNT],
-            predicted_positions: vec![Vec2::ZERO; PARTICLE_COUNT],
         }
     }
 
     pub fn update(&mut self, delta_time: f32, interaction: Option<Interaction>) {
+        // apply user input
         match interaction {
             Some(interaction) => {
-                let (pos, radius, strength) = match interaction {
-                    Interaction::Repel { pos, radius } => (pos, radius, -1.0),
-                    Interaction::Suck { pos, radius } => (pos, radius, 1.0),
+                let (pos, strength) = match interaction {
+                    Interaction::Repel(pos) => (pos, -Self::INTERACTION_STRENGTH),
+                    Interaction::Suck(pos) => (pos, Self::INTERACTION_STRENGTH),
                 };
 
                 for i in 0..PARTICLE_COUNT {
-                    let interaction_force = self.interaction_force(pos, radius, strength, i);
+                    let interaction_force =
+                        self.interaction_force(pos, Self::INTERACTION_RADIUS, strength, i);
                     self.velocities[i] += interaction_force;
                 }
             }
             _ => (),
         }
 
+        // predict next positions
         for i in 0..PARTICLE_COUNT {
             self.predicted_positions[i] =
-                self.positions[i] + self.velocities[i] * Vec2::new(1.0 / 120.0, 1.0 / 120.0);
+                self.positions[i] + self.velocities[i] * (Vec2::ONE * 1.0 / 120.0);
         }
 
+        // calculate densities
         for i in 0..PARTICLE_COUNT {
             self.densities[i] = self.calculate_density(&self.predicted_positions[i]);
         }
 
+        // calculate velocities
         for i in 0..PARTICLE_COUNT {
             let pressure_force = self.calculate_pressure_force(i);
             let pressure_accel = pressure_force / self.densities[i];
             self.velocities[i] += pressure_accel * delta_time;
         }
 
+        // move particles
         for i in 0..PARTICLE_COUNT {
             self.positions[i] += self.velocities[i] * delta_time;
         }
@@ -140,13 +187,21 @@ impl State {
         for i in 0..PARTICLE_COUNT {
             let p = &mut self.positions[i];
             let v = &mut self.velocities[i];
-            if p.x.abs() > 1.0 {
-                p.x = 1.0 * p.x.signum();
-                v.x *= -1.0 * Self::COLLISION_DAMPING;
+            if p.x < self.bounding_box.left() {
+                p.x = self.bounding_box.left();
+                v.x *= v.x.signum() * Self::COLLISION_DAMPING;
             }
-            if p.y.abs() > 1.0 {
-                p.y = 1.0 * p.y.signum();
-                v.y *= -1.0 * Self::COLLISION_DAMPING;
+            if p.x > self.bounding_box.right() {
+                p.x = self.bounding_box.right();
+                v.x *= -v.x.signum() * Self::COLLISION_DAMPING;
+            }
+            if p.y < self.bounding_box.top() {
+                p.y = self.bounding_box.top();
+                v.y *= v.y.signum() * Self::COLLISION_DAMPING;
+            }
+            if p.y > self.bounding_box.bottom() {
+                p.y = self.bounding_box.bottom();
+                v.y *= -v.y.signum() * Self::COLLISION_DAMPING;
             }
         }
     }
@@ -157,7 +212,7 @@ impl State {
         for other in &self.positions {
             let dist = (*other - *point).length();
             let influence = smoothing_kernel(dist, Self::SMOOTHING_RADIUS);
-            density += Self::MASS * influence;
+            density += influence;
         }
 
         density
@@ -182,31 +237,16 @@ fn smoothing_kernel_derivative(dist: f32, radius: f32) -> f32 {
     (dist - radius) * scale
 }
 
-fn generate_grid(n: usize, rand: bool) -> Vec<Vec2> {
+fn generate_grid(bounding_box: Rect, n: usize) -> Vec<Vec2> {
     let mut points = Vec::new();
-    let size = (n as f32).sqrt() as usize;
+    let mut rng = rand::thread_rng();
 
-    if rand {
-        use rand::prelude::*;
-        let mut rng = rand::thread_rng();
-
-        for _ in 0..n {
-            points.push(Vec2::new(
-                rng.gen::<f32>() * 2.0 - 1.0,
-                rng.gen::<f32>() * 2.0 - 1.0,
-            ))
-        }
-    } else {
-        let spacing = 2.0 / (size - 1) as f32;
-
-        for i in 0..size {
-            for j in 0..size {
-                points.push(Vec2 {
-                    x: -1.0 + spacing * i as f32,
-                    y: -1.0 + spacing * j as f32,
-                });
-            }
-        }
+    for _ in 0..n {
+        points.push(Vec2::new(
+            rng.gen::<f32>() * bounding_box.w + bounding_box.x,
+            rng.gen::<f32>() * bounding_box.h + bounding_box.y,
+        ))
     }
+
     points
 }

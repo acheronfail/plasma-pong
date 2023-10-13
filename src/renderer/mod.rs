@@ -16,7 +16,6 @@ use self::particles::GlParticles;
 use self::text::GlText;
 use self::utils::{compile_shader, link_program};
 use crate::engine::EngineContext;
-use crate::State;
 
 pub struct Renderer {
     // renders the particles
@@ -48,7 +47,8 @@ impl Renderer {
 
             // draw particles
             self.particles.draw(
-                State::PARTICLE_RADIUS,
+                ctx.state.particle_radius,
+                &ctx.state.bounding_box,
                 &ctx.state.positions,
                 &ctx.state.velocities,
             );

@@ -5,19 +5,19 @@ use glutin::prelude::*;
 use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use raw_window_handle::HasRawWindowHandle;
-use winit::dpi::PhysicalPosition;
+use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event_loop::{EventLoop, EventLoopBuilder};
 use winit::window::{Window, WindowBuilder};
 
 const WINDOW_TITLE: &str = "plasma-pong";
-const WINDOW_X: i32 = 0;
+const WINDOW_X: i32 = 2000;
 const WINDOW_Y: i32 = 50;
-const WINDOW_WIDTH: i32 = 1200;
-const WINDOW_HEIGHT: i32 = 800;
 
 /// Mostly all taken from:
 /// https://github.com/rust-windowing/glutin/blob/master/glutin_examples/src/lib.rs
-pub fn create_window() -> (
+pub fn create_window(
+    window_size: LogicalSize<u32>,
+) -> (
     Window,
     EventLoop<()>,
     Display,
@@ -28,7 +28,7 @@ pub fn create_window() -> (
     let window_builder = WindowBuilder::new()
         .with_position(PhysicalPosition::new(WINDOW_X, WINDOW_Y))
         .with_title(WINDOW_TITLE)
-        .with_inner_size(winit::dpi::LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
+        .with_inner_size(window_size);
 
     let (window, gl_config) = DisplayBuilder::new()
         .with_window_builder(Some(window_builder))

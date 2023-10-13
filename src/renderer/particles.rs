@@ -7,6 +7,7 @@ use glam::Vec2;
 
 use super::utils::{compile_shader, link_program};
 use crate::gl_assert_ok;
+use crate::state::Rect;
 
 pub struct GlParticles {
     vao: u32,
@@ -44,11 +45,14 @@ impl GlParticles {
         Ok(GlParticles { vao, vbo, program })
     }
 
-    pub fn draw(&self, radius: f32, particles: &[Vec2], velocities: &[Vec2]) {
-        let points = particles
+    pub fn draw(&self, radius: f32, bounding_box: &Rect, positions: &[Vec2], velocities: &[Vec2]) {
+        let points = positions
             .iter()
             .zip(velocities)
-            .flat_map(|(p, v)| vec![p.x, p.y, v.length()])
+            .flat_map(|(p, v)| {
+                let p = world_pos_to_gl_pos(bounding_box, p);
+                [p.x, p.y, v.length() / 4.0]
+            })
             .collect::<Vec<f32>>();
 
         unsafe {
@@ -64,10 +68,17 @@ impl GlParticles {
                 gl::STATIC_DRAW,
             );
 
-            gl::PointSize(radius * 2.0);
-            gl::DrawArrays(gl::POINTS, 0, particles.len() as GLsizei);
+            gl::PointSize(radius);
+            gl::DrawArrays(gl::POINTS, 0, positions.len() as GLsizei);
 
             gl_assert_ok!();
         }
     }
+}
+
+#[inline]
+fn world_pos_to_gl_pos(bounding_box: &Rect, world_pos: &Vec2) -> Vec2 {
+    let x = (world_pos.x - bounding_box.x) / (bounding_box.w * 0.5) - 1.0;
+    let y = (world_pos.y - bounding_box.y) / (bounding_box.h * 0.5) - 1.0;
+    Vec2::new(x, -y)
 }
