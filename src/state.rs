@@ -1,8 +1,13 @@
+//! A particle simulation system, largely inspired by Sebastian Lague's efforts:
+//! https://www.youtube.com/watch?v=rSKMYc1CQHE
+
 use std::f32::consts::PI;
 
 use glam::Vec2;
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
+
+use crate::engine::Interaction;
 
 pub struct State {
     rng: ThreadRng,
@@ -16,7 +21,7 @@ pub struct State {
 
 const PARTICLE_COUNT: usize = 500;
 impl State {
-    pub const PARTICLE_RADIUS: f32 = 15.0;
+    pub const PARTICLE_RADIUS: f32 = 10.0;
 
     const MASS: f32 = 1.0;
     const TARGET_DENSITY: f32 = 0.5;
@@ -35,7 +40,22 @@ impl State {
         }
     }
 
-    pub fn update(&mut self, delta_time: f32) {
+    pub fn update(&mut self, delta_time: f32, interaction: Option<Interaction>) {
+        match interaction {
+            Some(interaction) => {
+                let (pos, radius, strength) = match interaction {
+                    Interaction::Repel { pos, radius } => (pos, radius, -1.0),
+                    Interaction::Suck { pos, radius } => (pos, radius, 1.0),
+                };
+
+                for i in 0..PARTICLE_COUNT {
+                    let interaction_force = self.interaction_force(pos, radius, strength, i);
+                    self.velocities[i] += interaction_force;
+                }
+            }
+            _ => (),
+        }
+
         for i in 0..PARTICLE_COUNT {
             self.predicted_positions[i] =
                 self.positions[i] + self.velocities[i] * Vec2::new(1.0 / 120.0, 1.0 / 120.0);
@@ -56,6 +76,28 @@ impl State {
         }
 
         self.resolve_collisions();
+    }
+
+    fn interaction_force(&self, input: Vec2, radius: f32, strength: f32, idx: usize) -> Vec2 {
+        let offset = input - self.positions[idx];
+        let sqr_dist = offset.length_squared();
+
+        // if particle is inside input radius, calculate force towards input point
+        if sqr_dist < radius * radius {
+            let dist = sqr_dist.sqrt();
+            let dir_to_input_point = if dist <= f32::EPSILON {
+                Vec2::ZERO
+            } else {
+                offset / dist
+            };
+
+            // value is 1 when particle is exactly at input point; 0 when at edge of input circle
+            let center_t = 1.0 - dist / radius;
+            // calculate the force (velocity is subtracted to slow the particle down)
+            (dir_to_input_point * strength - self.velocities[idx]) * center_t
+        } else {
+            Vec2::ZERO
+        }
     }
 
     fn calculate_pressure_force(&mut self, idx: usize) -> Vec2 {

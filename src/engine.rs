@@ -1,17 +1,23 @@
 use std::num::NonZeroU32;
 use std::time::Instant;
 
+use glam::Vec2;
 use glutin::prelude::*;
 use glutin::surface::SwapInterval;
 use glutin_winit::GlWindow;
-use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::event::{ElementState, Event, MouseButton, VirtualKeyCode, WindowEvent};
 
 use crate::cli::Cli;
 use crate::fps::FpsCounter;
 use crate::renderer::Renderer;
 use crate::state::State;
 use crate::window::create_window;
+
+pub enum Interaction {
+    Repel { pos: Vec2, radius: f32 },
+    Suck { pos: Vec2, radius: f32 },
+}
 
 pub struct EngineContext<'a> {
     pub surface_dimensions: PhysicalSize<u32>,
@@ -34,6 +40,9 @@ impl Engine {
         let mut paused = false;
         let mut fps_counter = FpsCounter::new();
         let mut surface_dimensions = window.inner_size();
+        let mut cursor_pos = PhysicalPosition::default();
+        let mut cursor_button = MouseButton::Left;
+        let mut cursor_pressed = false;
 
         // gl state
         let mut gl_renderer = None;
@@ -73,6 +82,13 @@ impl Engine {
 
                         _ => {}
                     },
+                    WindowEvent::CursorMoved { position, .. } => {
+                        cursor_pos = position;
+                    }
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        cursor_pressed = matches!(state, ElementState::Pressed);
+                        cursor_button = button;
+                    }
                     _ => (),
                 },
                 Event::Resumed => {
@@ -103,7 +119,17 @@ impl Engine {
                     // state update
                     let delta_time = time.elapsed().as_secs_f32();
                     time = Instant::now();
-                    state.update(delta_time);
+                    state.update(
+                        delta_time,
+                        cursor_pressed.then(|| {
+                            let radius = 0.75;
+                            let pos = map_window_pos_to_gl_pos(surface_dimensions, cursor_pos);
+                            match cursor_button {
+                                MouseButton::Right => Interaction::Suck { pos, radius },
+                                _ => Interaction::Repel { pos, radius },
+                            }
+                        }),
+                    );
 
                     // render
                     match (&gl_context, &mut gl_renderer) {
@@ -145,4 +171,16 @@ impl Engine {
             }
         });
     }
+}
+
+fn map_window_pos_to_gl_pos(
+    window_dimensions: PhysicalSize<u32>,
+    position: PhysicalPosition<f64>,
+) -> Vec2 {
+    // convert to normalized device coordinates
+    let x_ndc = 2.0 * (position.x as f32 / window_dimensions.width as f32) - 1.0;
+    let y_ndc = 1.0 - 2.0 * (position.y as f32 / window_dimensions.height as f32);
+
+    // assuming the viewport is the same size as the window
+    Vec2::new(x_ndc, y_ndc).clamp(Vec2::NEG_ONE, Vec2::ONE)
 }
