@@ -1,3 +1,4 @@
+mod fluid;
 mod glyph;
 mod particles;
 mod text;
@@ -13,6 +14,7 @@ use glutin::prelude::*;
 use glyph_brush::{Section, Text};
 use winit::window::Window;
 
+use self::fluid::GlFluid;
 use self::particles::GlParticles;
 use self::text::GlText;
 use self::utils::{compile_shader, link_program};
@@ -20,6 +22,7 @@ use crate::engine::EngineContext;
 use crate::state::Rect;
 
 pub struct Renderer {
+    fluid: GlFluid,
     // renders the particles
     particles: GlParticles,
     // renders any text on the screen
@@ -37,11 +40,12 @@ impl Renderer {
         });
 
         unsafe {
-            gl::Enable(gl::DEPTH_TEST);
+            // gl::Enable(gl::DEPTH_TEST);
             gl::DepthFunc(gl::LESS);
         }
 
         Ok(Renderer {
+            fluid: GlFluid::new()?,
             particles: GlParticles::new()?,
             text: GlText::new(dimensions)?,
         })
@@ -70,6 +74,9 @@ impl Renderer {
 
             // draw particles
             self.particles.draw(&ctx);
+
+            // draw pressure zones
+            self.fluid.draw(&ctx);
         }
     }
 }
