@@ -8,7 +8,6 @@ mod window;
 use clap::Parser;
 use cli::Cli;
 use engine::Engine;
-use state::State;
 
 pub fn main() -> ! {
     Engine::run(Cli::parse());

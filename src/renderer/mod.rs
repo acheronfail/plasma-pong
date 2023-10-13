@@ -7,6 +7,7 @@ mod utils;
 use std::ffi::CString;
 
 use anyhow::Result;
+use glam::Vec2;
 use glutin::display::Display;
 use glutin::prelude::*;
 use glyph_brush::{Section, Text};
@@ -16,6 +17,7 @@ use self::particles::GlParticles;
 use self::text::GlText;
 use self::utils::{compile_shader, link_program};
 use crate::engine::EngineContext;
+use crate::state::Rect;
 
 pub struct Renderer {
     // renders the particles
@@ -34,6 +36,11 @@ impl Renderer {
             gl_display.get_proc_address(symbol.as_c_str()).cast()
         });
 
+        unsafe {
+            gl::Enable(gl::DEPTH_TEST);
+            gl::DepthFunc(gl::LESS);
+        }
+
         Ok(Renderer {
             particles: GlParticles::new()?,
             text: GlText::new(dimensions)?,
@@ -43,19 +50,11 @@ impl Renderer {
     pub fn draw(&mut self, ctx: EngineContext) {
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-
-            // draw particles
-            self.particles.draw(
-                ctx.state.particle_radius,
-                &ctx.state.bounding_box,
-                &ctx.state.positions,
-                &ctx.state.velocities,
-            );
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             // draw text on screen
             self.text.update_geometry(ctx.surface_dimensions);
-            self.text.draw(vec![
+            self.text.draw(&vec![
                 // draw fps
                 Section::default()
                     .add_text(
@@ -64,10 +63,28 @@ impl Renderer {
                             .with_color([1.0, 1.0, 1.0, 1.0]),
                     )
                     .with_bounds((
-                        ctx.surface_dimensions.width as f32 / 2.,
+                        ctx.surface_dimensions.width as f32,
                         ctx.surface_dimensions.height as f32,
                     )),
             ]);
+
+            // draw particles
+            self.particles.draw(&ctx);
         }
     }
+}
+
+#[inline]
+pub fn world_pos_to_gl_pos(bounding_box: &Rect, world_pos: &Vec2) -> Vec2 {
+    let x = (world_pos.x - bounding_box.x) / (bounding_box.w * 0.5) - 1.0;
+    let y = (world_pos.y - bounding_box.y) / (bounding_box.h * 0.5) - 1.0;
+    Vec2::new(x, -y)
+}
+
+#[allow(unused)]
+#[inline]
+pub fn world_len_to_gl_len(bounding_box: &Rect, world_len: f32) -> f32 {
+    let world_min = f32::min(bounding_box.x, bounding_box.y);
+    let world_max = f32::max(bounding_box.w, bounding_box.h);
+    (world_len - world_min) / (world_max - world_min)
 }

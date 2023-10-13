@@ -42,7 +42,7 @@ impl GlText {
         self.text_pipe.update_geometry(surface_dimensions);
     }
 
-    pub fn draw(&mut self, sections: Vec<Section>) {
+    pub fn draw(&mut self, sections: &[Section]) {
         for section in sections {
             self.glyph_brush.queue(section);
         }

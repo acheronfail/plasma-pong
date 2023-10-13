@@ -43,7 +43,6 @@ pub struct State {
     rng: ThreadRng,
 
     pub bounding_box: Rect,
-    pub particle_radius: f32,
 
     // particles
     pub positions: Vec<Vec2>,
@@ -54,11 +53,11 @@ pub struct State {
     last_update_offset: f32,
 }
 
-const PARTICLE_COUNT: usize = 1500;
+const PARTICLE_COUNT: usize = 1200;
 impl State {
     pub const PIXELS_PER_UNIT: f32 = 50.0;
 
-    const TICK_RATE: f32 = 60.0;
+    const TICK_RATE: f32 = 30.0;
     const TICK_DELTA: f32 = 1.0 / Self::TICK_RATE;
 
     const MASS: f32 = 1.0;
@@ -70,6 +69,10 @@ impl State {
     const INTERACTION_RADIUS: f32 = 1.0;
     const INTERACTION_STRENGTH: f32 = 3.0;
 
+    pub fn smoothing_radius(&self) -> f32 {
+        Self::SMOOTHING_RADIUS
+    }
+
     pub fn new() -> State {
         let bounding_box = Rect::new(0.0, 0.0, 16.0, 9.0);
         let positions = generate_grid(bounding_box, PARTICLE_COUNT);
@@ -77,7 +80,6 @@ impl State {
             rng: thread_rng(),
 
             bounding_box,
-            particle_radius: Self::SMOOTHING_RADIUS * Self::PIXELS_PER_UNIT,
 
             positions,
             predicted_positions: vec![Vec2::ZERO; PARTICLE_COUNT],

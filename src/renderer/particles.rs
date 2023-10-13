@@ -3,11 +3,12 @@ use std::ptr;
 
 use anyhow::Result;
 use gl::types::*;
-use glam::Vec2;
 
 use super::utils::{compile_shader, link_program};
+use super::world_pos_to_gl_pos;
+use crate::engine::EngineContext;
 use crate::gl_assert_ok;
-use crate::state::Rect;
+use crate::state::State;
 
 pub struct GlParticles {
     vao: u32,
@@ -45,12 +46,14 @@ impl GlParticles {
         Ok(GlParticles { vao, vbo, program })
     }
 
-    pub fn draw(&self, radius: f32, bounding_box: &Rect, positions: &[Vec2], velocities: &[Vec2]) {
-        let points = positions
+    pub fn draw(&self, ctx: &EngineContext) {
+        let points = ctx
+            .state
+            .positions
             .iter()
-            .zip(velocities)
+            .zip(&ctx.state.velocities)
             .flat_map(|(p, v)| {
-                let p = world_pos_to_gl_pos(bounding_box, p);
+                let p = world_pos_to_gl_pos(&ctx.state.bounding_box, p);
                 [p.x, p.y, v.length() / 2.0]
             })
             .collect::<Vec<f32>>();
@@ -68,17 +71,10 @@ impl GlParticles {
                 gl::STATIC_DRAW,
             );
 
-            gl::PointSize(radius);
-            gl::DrawArrays(gl::POINTS, 0, positions.len() as GLsizei);
+            gl::PointSize(ctx.state.smoothing_radius() * State::PIXELS_PER_UNIT);
+            gl::DrawArrays(gl::POINTS, 0, ctx.state.positions.len() as GLsizei);
 
             gl_assert_ok!();
         }
     }
-}
-
-#[inline]
-fn world_pos_to_gl_pos(bounding_box: &Rect, world_pos: &Vec2) -> Vec2 {
-    let x = (world_pos.x - bounding_box.x) / (bounding_box.w * 0.5) - 1.0;
-    let y = (world_pos.y - bounding_box.y) / (bounding_box.h * 0.5) - 1.0;
-    Vec2::new(x, -y)
 }
