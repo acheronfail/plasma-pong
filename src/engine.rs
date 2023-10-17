@@ -12,8 +12,9 @@ use winit::event::{ElementState, Event, MouseButton, VirtualKeyCode, WindowEvent
 
 use crate::cli::Cli;
 use crate::fps::FpsCounter;
+use crate::rect::Rect;
 use crate::renderer::Renderer;
-use crate::state::{Rect, State};
+use crate::state::State;
 use crate::window::create_window;
 
 pub enum Interaction {

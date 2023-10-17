@@ -1,6 +1,7 @@
 mod cli;
 mod engine;
 mod fps;
+mod rect;
 mod renderer;
 mod state;
 mod window;

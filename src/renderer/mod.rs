@@ -17,7 +17,7 @@ use self::particles::GlParticles;
 use self::text::GlText;
 use self::utils::{compile_shader, link_program};
 use crate::engine::EngineContext;
-use crate::state::Rect;
+use crate::rect::Rect;
 
 pub struct Renderer {
     // renders the particles

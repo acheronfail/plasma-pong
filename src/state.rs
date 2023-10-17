@@ -8,36 +8,7 @@ use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
 
 use crate::engine::Interaction;
-
-#[derive(Debug, Clone, Copy)]
-pub struct Rect {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
-}
-
-impl Rect {
-    pub const fn new(x: f32, y: f32, w: f32, h: f32) -> Rect {
-        Rect { x, y, w, h }
-    }
-
-    pub fn left(&self) -> f32 {
-        self.x
-    }
-
-    pub fn right(&self) -> f32 {
-        self.x + self.w
-    }
-
-    pub fn top(&self) -> f32 {
-        self.y
-    }
-
-    pub fn bottom(&self) -> f32 {
-        self.y + self.h
-    }
-}
+use crate::rect::Rect;
 
 pub struct State {
     rng: ThreadRng,
