@@ -3,7 +3,7 @@
 
 use std::f32::consts::PI;
 
-use glam::Vec2;
+use glam::{IVec2, Vec2};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
 
@@ -50,6 +50,10 @@ pub struct State {
     pub velocities: Vec<Vec2>,
     pub densities: Vec<f32>,
 
+    // (particle_idx, cell_key)
+    spatial_lookup: Vec<(usize, usize)>,
+    start_indices: Vec<usize>,
+
     last_update_offset: f32,
 }
 
@@ -63,11 +67,11 @@ impl State {
     const MASS: f32 = 1.0;
     const TARGET_DENSITY: f32 = 5.0;
     const SMOOTHING_RADIUS: f32 = 0.7;
-    const COLLISION_DAMPING: f32 = 0.95;
-    const PRESSURE_MULTIPLIER: f32 = 27.0;
+    const COLLISION_DAMPING: f32 = 0.75;
+    const PRESSURE_MULTIPLIER: f32 = 50.0;
 
-    const INTERACTION_RADIUS: f32 = 1.0;
-    const INTERACTION_STRENGTH: f32 = 3.0;
+    const INTERACTION_RADIUS: f32 = 1.5;
+    const INTERACTION_STRENGTH: f32 = 5.0;
 
     pub fn smoothing_radius(&self) -> f32 {
         Self::SMOOTHING_RADIUS
@@ -85,6 +89,9 @@ impl State {
             predicted_positions: vec![Vec2::ZERO; PARTICLE_COUNT],
             velocities: vec![Vec2::ZERO; PARTICLE_COUNT],
             densities: vec![0.0; PARTICLE_COUNT],
+
+            spatial_lookup: vec![(0, 0); PARTICLE_COUNT],
+            start_indices: vec![usize::MAX; PARTICLE_COUNT],
 
             last_update_offset: 0.0,
         }
@@ -120,15 +127,17 @@ impl State {
             _ => (),
         }
 
+        self.update_spatial_lookup();
+
         // predict next positions
         for i in 0..PARTICLE_COUNT {
             self.predicted_positions[i] =
-                self.positions[i] + self.velocities[i] * (Vec2::ONE * 1.0 / 120.0);
+                self.positions[i] + self.velocities[i] * (Vec2::ONE * Self::TICK_DELTA);
         }
 
         // calculate densities
         for i in 0..PARTICLE_COUNT {
-            self.densities[i] = self.calculate_density(&self.predicted_positions[i]);
+            self.densities[i] = self.calculate_density(i);
         }
 
         // calculate velocities
@@ -146,6 +155,73 @@ impl State {
         self.resolve_collisions();
     }
 
+    fn get_neighbours_by_idx(&self, idx: usize) -> Vec<usize> {
+        self.get_neighbours_by_pos(self.positions[idx])
+    }
+
+    fn get_neighbours_by_pos(&self, world_pos: Vec2) -> Vec<usize> {
+        let center_pos = world_pos_to_cell_pos(world_pos, Self::SMOOTHING_RADIUS);
+        let sqr_radius = Self::SMOOTHING_RADIUS * Self::SMOOTHING_RADIUS;
+
+        const OFFSETS: [IVec2; 9] = [
+            IVec2::new(-1, -1),
+            IVec2::new(0, -1),
+            IVec2::new(1, -1),
+            IVec2::new(-1, 0),
+            IVec2::new(0, 0),
+            IVec2::new(1, 0),
+            IVec2::new(-1, 1),
+            IVec2::new(0, 1),
+            IVec2::new(1, 1),
+        ];
+
+        let mut neighbours = vec![];
+        for offset in OFFSETS {
+            let cell_key = create_cell_hash(center_pos + offset) % self.spatial_lookup.len();
+            let cell_start_idx = self.start_indices[cell_key];
+
+            for i in cell_start_idx..self.spatial_lookup.len() {
+                if self.spatial_lookup[i].1 != cell_key {
+                    break;
+                }
+
+                let (particle_idx, _) = self.spatial_lookup[i];
+                let sqr_dist = (self.positions[particle_idx] - world_pos).length_squared();
+
+                if sqr_dist <= sqr_radius {
+                    neighbours.push(particle_idx);
+                }
+            }
+        }
+
+        neighbours
+    }
+
+    fn update_spatial_lookup(&mut self) {
+        for i in 0..PARTICLE_COUNT {
+            let cell_pos = world_pos_to_cell_pos(self.positions[i], Self::SMOOTHING_RADIUS);
+            let cell_key = create_cell_hash(cell_pos) % self.spatial_lookup.len();
+            self.spatial_lookup[i] = (i, cell_key);
+            self.start_indices[i] = usize::MAX;
+        }
+
+        self.spatial_lookup.sort_by_key(|(_, cell_key)| *cell_key);
+
+        for i in 0..self.spatial_lookup.len() {
+            let (_, cell_key) = self.spatial_lookup[i];
+            let prev_cell_key = if i == 0 {
+                usize::MAX
+            } else {
+                let (_, key_prev) = self.spatial_lookup[i - 1];
+                key_prev
+            };
+
+            if cell_key != prev_cell_key {
+                self.start_indices[cell_key] = i;
+            }
+        }
+    }
+
     fn interaction_force(&self, input: Vec2, radius: f32, strength: f32, idx: usize) -> Vec2 {
         let offset = input - self.positions[idx];
         let sqr_dist = offset.length_squared();
@@ -156,7 +232,7 @@ impl State {
             let dir_to_input_point = if dist <= f32::EPSILON {
                 Vec2::ZERO
             } else {
-                offset / dist
+                offset.normalize()
             };
 
             // value is 1 when particle is exactly at input point; 0 when at edge of input circle
@@ -176,14 +252,15 @@ impl State {
             }
 
             let offset = self.predicted_positions[other_idx] - self.predicted_positions[idx];
-            let dist = offset.length();
-            let dir = if dist == 0.0 {
-                self.rng.gen::<Vec2>().normalize()
+            let dst = offset.length();
+            let dir = if dst == 0.0 {
+                self.rng.gen::<Vec2>()
             } else {
-                offset / dist
-            };
+                offset
+            }
+            .normalize();
 
-            let slope = smoothing_kernel_derivative(dist, Self::SMOOTHING_RADIUS);
+            let slope = smoothing_kernel_derivative(dst, Self::SMOOTHING_RADIUS);
             let density = self.densities[other_idx];
             let shared_pressure = self.calculate_shared_pressure(density, self.densities[idx]);
             pressure_force += shared_pressure * dir * slope * Self::MASS / density;
@@ -208,6 +285,7 @@ impl State {
         for i in 0..PARTICLE_COUNT {
             let p = &mut self.positions[i];
             let v = &mut self.velocities[i];
+
             if p.x < self.bounding_box.left() {
                 p.x = self.bounding_box.left();
                 v.x *= v.x.signum() * Self::COLLISION_DAMPING;
@@ -227,11 +305,11 @@ impl State {
         }
     }
 
-    fn calculate_density(&self, point: &Vec2) -> f32 {
+    fn calculate_density(&self, idx: usize) -> f32 {
         let mut density = 0.0;
 
-        for other in &self.positions {
-            let dist = (*other - *point).length();
+        for other_idx in self.get_neighbours_by_idx(idx) {
+            let dist = (self.positions[other_idx] - self.positions[idx]).length();
             let influence = smoothing_kernel(dist, Self::SMOOTHING_RADIUS);
             density += influence;
         }
@@ -270,4 +348,17 @@ fn generate_grid(bounding_box: Rect, n: usize) -> Vec<Vec2> {
     }
 
     points
+}
+
+fn world_pos_to_cell_pos(world_pos: Vec2, smoothing_radius: f32) -> IVec2 {
+    IVec2::new(
+        (world_pos.x / smoothing_radius).floor() as i32,
+        (world_pos.y / smoothing_radius).floor() as i32,
+    )
+}
+
+fn create_cell_hash(cell_pos: IVec2) -> usize {
+    let a = (cell_pos.x) as usize * 15823;
+    let b = (cell_pos.y) as usize * 9737333;
+    a + b
 }
